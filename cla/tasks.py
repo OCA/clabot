@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from collections import namedtuple
 from contextlib import AsyncExitStack
 
@@ -23,6 +24,19 @@ from cla.status import fail_status_check, succeed_status_check
 from cla.utils import normalize_email
 
 Author = namedtuple("Author", "login id node_id email")
+
+
+COMMITS_TO_SKIP_REGEXES = [
+    re.compile(r"^Translated using Weblate .*Translate-URL: https://translation\.odoo-community\.org/", re.DOTALL),
+    re.compile(r"^Added translation using Weblate .*", re.DOTALL),
+]
+
+def _should_skip_commit(commit) -> bool:
+    message = commit["commit"]["message"]
+    for commits_to_skip_regex in COMMITS_TO_SKIP_REGEXES:
+        if commits_to_skip_regex.match(message):
+            return True
+    return False
 
 
 @task
@@ -94,6 +108,9 @@ async def check_pull_request(
         async for commit in gh.getiter(
             f"/repos/{target_repository_full_name}/pulls/{pull_request_number}/commits"
         ):
+            if _should_skip_commit(commit):
+                continue
+
             if commit["author"]:
                 authors.add(
                     Author(
