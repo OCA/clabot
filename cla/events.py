@@ -1,9 +1,18 @@
+import re
+from collections import namedtuple
+
 from django.http import HttpResponse
 from django_github_app.routing import GitHubRouter
 
 from cla.tasks import check_pull_request
 
 gh = GitHubRouter()
+
+RECHECK_COMMAND_RE = re.compile(r"^\s*/clabot\s+recheck\b", re.IGNORECASE | re.MULTILINE)
+
+
+def is_recheck_command(body):
+    return bool(body and RECHECK_COMMAND_RE.search(body))
 
 
 @gh.event("pull_request", action="opened")
@@ -52,3 +61,31 @@ async def handle_pull_request(event, gh, *args, react=True, immediate=False):
     await check_pull_request.aenqueue(*_args, **_kwargs)
 
     return HttpResponse("OK")
+
+
+@gh.event("issue_comment", action="created")
+async def handle_issue_comment(event, gh, *args, **kwargs):
+    issue = event.data.get("issue", {})
+    comment = event.data.get("comment", {})
+    repository = event.data.get("repository", {})
+
+    # Only comments on pull requests, written by humans, asking for a recheck
+    if (
+        "pull_request" not in issue
+        or event.data.get("sender", {}).get("type") == "Bot"
+        or not is_recheck_command(comment.get("body"))
+    ):
+        return
+
+    full_name = repository.get("full_name")
+    pull = await gh.getitem(f"/repos/{full_name}/pulls/{issue.get('number')}")
+    await handle_pull_request(
+        namedtuple("Event", "data")({"pull_request": pull, "repository": repository}),
+        gh,
+    )
+
+    # Acknowledge the command
+    await gh.post(
+        f"/repos/{full_name}/issues/comments/{comment.get('id')}/reactions",
+        data={"content": "+1"},
+    )

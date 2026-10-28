@@ -20,6 +20,8 @@ If a new signature is required, a GitHub Commit Status will be created and a com
 
 If an acceptable signature exists, a GitHub Commit Status will be created. If a past comment exists from the application it will be updated to indicate that all necessary signatures have been completed.
 
+A new check can be requested at any time by commenting `/clabot recheck` on the Pull Request.
+
 ## Development
 
 This project is built with Django, django-github-app, and gidgethub.
@@ -54,6 +56,7 @@ Create a GitHub Application using the following settings:
     * Account permissions:
         * Email addresses: Read-only
 * Subscribe to events:
+    * [x] Issue comment
     * [x] Pull request
 
 “Generate a new client secret” and store it safely.
