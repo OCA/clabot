@@ -24,6 +24,61 @@ from cla.utils import normalize_email
 
 Author = namedtuple("Author", "login id node_id email")
 
+# Committer used by GitHub for commits created through its web interface
+GITHUB_WEB_FLOW_LOGIN = "web-flow"
+GITHUB_WEB_FLOW_EMAIL = "noreply@github.com"
+
+
+def _commit_person(commit, role):
+    """Build an Author for the commit's `role` ("author" or "committer")."""
+    if commit[role]:
+        return Author(
+            commit[role]["login"],
+            commit[role]["id"],
+            commit[role]["node_id"],
+            commit["commit"][role]["email"],
+        )
+    if commit["commit"][role]:
+        return Author(
+            commit["commit"][role]["name"],
+            None,
+            None,
+            commit["commit"][role]["email"],
+        )
+    return None
+
+
+def _is_same_person(author, committer):
+    if author.id is not None and committer.id is not None:
+        return author.id == committer.id
+    return (author.email or "").lower() == (committer.email or "").lower()
+
+
+def _is_github_web_flow(committer):
+    return (
+        committer.login == GITHUB_WEB_FLOW_LOGIN
+        or (committer.email or "").lower() == GITHUB_WEB_FLOW_EMAIL
+    )
+
+
+def commit_signer(commit):
+    """Return the person who must have signed the CLA for this commit.
+
+    When a commit is committed by someone other than its author (e.g. a
+    contributor porting someone else's work), the committer is the one
+    contributing it, so the committer's CLA is checked. Otherwise, the
+    author's CLA is checked.
+    """
+    author = _commit_person(commit, "author")
+    committer = _commit_person(commit, "committer")
+    if (
+        committer is None
+        or _is_github_web_flow(committer)
+        or (author is not None and _is_same_person(author, committer))
+    ):
+        return author
+    return committer
+
 
 @task
 @stamina.retry(on=gidgethub.GitHubException)
@@ -88,30 +143,15 @@ async def check_pull_request(
                 AsyncGitHubAPI("clabot", installation=_repository.installation)
             )
 
-        # Collect all authors from this commit
+        # Collect the person responsible for each commit
         # TODO: Should we consider "Co-authored-by"???
         authors = set()
         async for commit in gh.getiter(
             f"/repos/{target_repository_full_name}/pulls/{pull_request_number}/commits"
         ):
-            if commit["author"]:
-                authors.add(
-                    Author(
-                        commit["author"]["login"],
-                        commit["author"]["id"],
-                        commit["author"]["node_id"],
-                        commit["commit"]["author"]["email"],
-                    )
-                )
-            elif commit["commit"]["author"]:
-                authors.add(
-                    Author(
-                        commit["commit"]["author"]["name"],
-                        None,
-                        None,
-                        commit["commit"]["author"]["email"],
-                    )
-                )
+            author = commit_signer(commit)
+            if author:
+                authors.add(author)
 
         # Find and remove any PreApprovedAccounts, they do not need to sign
         pre_approved_accounts = set()

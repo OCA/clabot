@@ -16,6 +16,8 @@ Users can login to view agreements that are awaiting signature, past signatures,
 
 When installed, this application will monitor GitHub Pull Requests for changes and determine if a CLA has been signed for all authors.
 
+For each commit, the CLA of its author is checked. If the commit was committed by a different person than its author (e.g. someone porting another contributor's work), the CLA of the committer is checked instead. Commits committed by GitHub itself (`web-flow`, e.g. edits made through the web interface) are checked against their author.
+
 If a new signature is required, a GitHub Commit Status will be created and a comment will be created directing users to the application in order to sign.
 
 If an acceptable signature exists, a GitHub Commit Status will be created. If a past comment exists from the application it will be updated to indicate that all necessary signatures have been completed.

@@ -48,7 +48,7 @@ async def post_or_update_fail_comment(
 ):
     emails = "\n".join([f"* {email}" for email in email_addresses])
     message = (
-        "The following commit authors need to sign "
+        "The following commit contributors need to sign "
         "the Contributor License Agreement:\n\n"
         f"{emails}\n\n"
         f"[![CLA not signed]({NOT_SIGNED_BADGE})]({settings.SITE_URL})"
@@ -59,7 +59,7 @@ async def post_or_update_fail_comment(
 
 async def update_success_comment(gh, target_repository_full_name, pull_request_number):
     message = (
-        "All commit authors signed the Contributor License Agreement.\n\n"
+        "All commit contributors signed the Contributor License Agreement.\n\n"
         f"[![CLA signed]({SIGNED_BADGE})]({settings.SITE_URL})"
         f"{SENTINEL_MARKER}"
     )
